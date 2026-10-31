@@ -1,0 +1,26 @@
+{
+  "name": "three",
+  "version": "0.187.0",
+  "revision": "187",
+  "commit": "cb0a902b668f848b2a0b6e1fb8f928f5a8ef1168",
+  "describe": "r187-5-gcb0a902b66",
+  "license": "MIT",
+  "licenseFile": "LICENSE",
+  "licenseSha256": "5d5dad8147523d59bc15cca838ae0bdaae7075230ec49132c551a1d18e7b3412",
+  "repository": "https://github.com/mrdoob/three.js",
+  "entry": "three.module.js",
+  "files": [
+    {
+      "path": "three.module.js",
+      "source": "build/three.module.js",
+      "sha256": "52c8d1c5da42e31b77730009db4b41a9f353e908d9078fe57643e434631d3e0f",
+      "bytes": 678437
+    },
+    {
+      "path": "three.core.js",
+      "source": "build/three.core.js",
+      "sha256": "d3c91efb5164f9542c24a392c982e8168005c78f5189863cc8546fb0b831ecc1",
+      "bytes": 1535961
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+@page "/"
+@using System.Diagnostics
+@using Three.Interop
+@using Three.Runtime
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Three.cs runtime validation</PageTitle>
+
+<h1>Three.cs runtime validation (Blazor WebAssembly)</h1>
+
+<p>
+    Entry point: <code data-testid="module-specifier">@ThreeRuntimeAssets.ModuleSpecifier</code>
+</p>
+
+<p>
+    <button data-testid="initialize" @onclick="InitializeAsync" disabled="@_busy">Initialize</button>
+    <button data-testid="dispose" @onclick="DisposeRuntimeAsync" disabled="@_busy">Dispose</button>
+    <button data-testid="repeat" @onclick="RepeatAsync" disabled="@_busy">Dispose and initialize again</button>
+</p>
+
+<dl>
+    <dt>State</dt>
+    <dd data-testid="state">@_runtime.State</dd>
+
+    <dt>Interop round trip (C# Stopwatch, ms)</dt>
+    <dd data-testid="elapsed-ms">@(_elapsedMs is null ? "-" : _elapsedMs.Value.ToString("F1"))</dd>
+
+    @if (_initialization is not null)
+    {
+        <dt>JavaScript timings (performance.now, ms)</dt>
+        <dd data-testid="timings">import @_initialization.Timings.ImportMs.ToString("F1") / initialize @_initialization.Timings.InitializeMs.ToString("F1") / total @_initialization.Timings.TotalMs.ToString("F1")</dd>
+    }
+
+    @if (_upstream is not null)
+    {
+        <dt>Upstream</dt>
+        <dd>
+            <span data-testid="upstream-name">@_upstream.Name</span>
+            <span data-testid="upstream-version">@_upstream.Version</span>
+            r<span data-testid="upstream-revision">@_upstream.Revision</span>
+            (loaded r<span data-testid="upstream-loaded-revision">@_upstream.LoadedRevision</span>)
+            <span data-testid="upstream-license">@_upstream.License</span>
+            <code data-testid="upstream-commit">@_upstream.Commit</code>
+        </dd>
+    }
+
+    @if (_capabilities is not null)
+    {
+        <dt>Capabilities</dt>
+        <dd>
+            <ul data-testid="capabilities">
+                @foreach (var capability in _capabilities.Available)
+                {
+                    <li>@capability</li>
+                }
+            </ul>
+            Unavailable: <span data-testid="capabilities-unavailable">@string.Join(", ", _capabilities.Unavailable)</span>
+            WebGL2: <span data-testid="webgl2">@_capabilities.Environment.WebGL2</span>
+        </dd>
+    }
+
+    @if (_error is not null)
+    {
+        <dt>Error</dt>
+        <dd role="alert">
+            <span data-testid="error-code">@_error.Code</span>
+            <span data-testid="error-stage">@_error.Stage</span>
+            <span data-testid="error-message">@_error.Message</span>
+        </dd>
+    }
+</dl>
+
+@code {
+    private ThreeRuntime _runtime = default!;
+    private ThreeRuntimeInitialization? _initialization;
+    private ThreeUpstreamInfo? _upstream;
+    private ThreeRuntimeCapabilities? _capabilities;
+    private ThreeRuntimeException? _error;
+    private double? _elapsedMs;
+    private bool _busy;
+
+    /// <summary>Starts initialization automatically when the page is opened with <c>?autorun=1</c>.</summary>
+    [SupplyParameterFromQuery(Name = "autorun")]
+    public int Autorun { get; set; }
+
+    protected override void OnInitialized() => _runtime = new ThreeRuntime(JS);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && Autorun == 1)
+        {
+            await InitializeAsync();
+        }
+    }
+
+    private async Task InitializeAsync()
+    {
+        _busy = true;
+        _error = null;
+        var started = Stopwatch.GetTimestamp();
+        try
+        {
+            _initialization = await _runtime.InitializeAsync();
+            _upstream = await _runtime.GetUpstreamInfoAsync();
+            _capabilities = await _runtime.GetCapabilitiesAsync();
+        }
+        catch (ThreeRuntimeException exception)
+        {
+            _initialization = null;
+            _upstream = null;
+            _capabilities = null;
+            _error = exception;
+        }
+        finally
+        {
+            _elapsedMs = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+            _busy = false;
+        }
+    }
+
+    private async Task DisposeRuntimeAsync()
+    {
+        _busy = true;
+        await _runtime.DisposeAsync();
+        _initialization = null;
+        _upstream = null;
+        _capabilities = null;
+        _error = null;
+        _elapsedMs = null;
+        _busy = false;
+    }
+
+    private async Task RepeatAsync()
+    {
+        await DisposeRuntimeAsync();
+        _runtime = new ThreeRuntime(JS);
+        await InitializeAsync();
+    }
+
+    public ValueTask DisposeAsync() => _runtime.DisposeAsync();
+}

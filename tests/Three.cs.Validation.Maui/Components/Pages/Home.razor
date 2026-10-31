@@ -1,0 +1,354 @@
+@page "/"
+@using System.Diagnostics
+@using System.Text.Json
+@using Three.Interop
+@using Three.Runtime
+@using Three.Validation.Maui.Models
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<h1>Three.cs MAUI Blazor Hybrid Validation</h1>
+
+<p>
+    Status: <strong data-testid="status">@_status</strong>
+</p>
+
+@if (_env is not null)
+{
+    <section>
+        <h2>Environment & WebView Timing</h2>
+        <ul>
+            <li><strong>Platform:</strong> <span data-testid="env-platform">@_env.Platform</span></li>
+            <li><strong>OS:</strong> <span data-testid="env-os">@_env.OperatingSystem</span></li>
+            <li><strong>Device:</strong> <span data-testid="env-device">@_env.DeviceModel</span></li>
+            <li><strong>Config:</strong> <span data-testid="env-config">@_env.BuildConfiguration</span></li>
+            <li><strong>WebView UA:</strong> <span data-testid="env-ua">@_env.WebViewUserAgent</span></li>
+            <li><strong>Native WebView Ready:</strong> <span data-testid="native-webview-ready">@(_nativeWebViewReadyMs >= 0 ? $"{_nativeWebViewReadyMs:F2} ms" : "Event pending")</span></li>
+            <li><strong>Blazor Component Ready:</strong> <span data-testid="blazor-ready">@_blazorComponentReadyMs.ToString("F2") ms</span></li>
+        </ul>
+    </section>
+}
+
+<p>
+    <button data-testid="btn-run" @onclick="RunValidationSuiteAsync" disabled="@_busy">Run Validation Suite (Cold + 5 Warm)</button>
+</p>
+
+@if (_upstream is not null)
+{
+    <section>
+        <h2>Upstream Three.js</h2>
+        <ul>
+            <li><strong>Name:</strong> @_upstream.Name</li>
+            <li><strong>Version:</strong> @_upstream.Version (Revision @_upstream.Revision, Loaded: @_upstream.LoadedRevision)</li>
+            <li><strong>Commit:</strong> <code>@_upstream.Commit</code></li>
+            <li><strong>License:</strong> @_upstream.License</li>
+        </ul>
+    </section>
+}
+
+@if (_capabilities is not null)
+{
+    <section>
+        <h2>Capabilities</h2>
+        <ul>
+            <li><strong>Available:</strong> @string.Join(", ", _capabilities.Available)</li>
+            <li><strong>Unavailable:</strong> @(_capabilities.Unavailable.Count == 0 ? "None" : string.Join(", ", _capabilities.Unavailable))</li>
+            <li><strong>WebGL2 Context:</strong> @_capabilities.Environment.WebGL2</li>
+        </ul>
+    </section>
+}
+
+@if (_iterations.Count > 0)
+{
+    <section>
+        <h2>Measurements</h2>
+        <table border="1" cellpadding="6" style="border-collapse: collapse; width: 100%;">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Operation</th>
+                    <th>Type</th>
+                    <th>C# Module Import (ms)</th>
+                    <th>C# Runtime Init / Op (ms)</th>
+                    <th>C# Total (ms)</th>
+                    <th>JS Import (ms)</th>
+                    <th>JS Init (ms)</th>
+                    <th>JS Total (ms)</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var it in _iterations)
+                {
+                    <tr>
+                        <td>@it.Iteration</td>
+                        <td>@it.Operation</td>
+                        <td>@(it.IsCold ? "Cold" : "Warm")</td>
+                        <td>@(it.IsCold ? it.ModuleImportMs.ToString("F2") : "-")</td>
+                        <td>@it.RuntimeInitMs.ToString("F2")</td>
+                        <td>@it.TotalMs.ToString("F2")</td>
+                        <td>@(it.IsCold ? it.JsImportMs.ToString("F2") : "-")</td>
+                        <td>@(it.IsCold ? it.JsInitMs.ToString("F2") : "-")</td>
+                        <td>@(it.IsCold ? it.JsTotalMs.ToString("F2") : "-")</td>
+                        <td>@(it.Error ?? "Success")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
+@if (_warmStats is not null)
+{
+    <section>
+        <h2>Warm Operations Statistics (Active Runtime)</h2>
+        <ul>
+            <li><strong>Mean:</strong> @_warmStats.Mean.ToString("F2") ms</li>
+            <li><strong>Median:</strong> @_warmStats.Median.ToString("F2") ms</li>
+            <li><strong>Min:</strong> @_warmStats.Min.ToString("F2") ms</li>
+            <li><strong>Max:</strong> @_warmStats.Max.ToString("F2") ms</li>
+        </ul>
+    </section>
+}
+
+@if (!string.IsNullOrEmpty(_reportJsonPath))
+{
+    <p>
+        Report saved to: <code>@_reportJsonPath</code>
+    </p>
+}
+
+@code {
+    private string _status = "Initializing WebView...";
+    private bool _busy;
+    private double _nativeWebViewReadyMs = -1;
+    private double _blazorComponentReadyMs;
+    private MauiEnvironmentInfo? _env;
+    private ThreeUpstreamInfo? _upstream;
+    private ThreeRuntimeCapabilities? _capabilities;
+    private readonly List<MauiIterationMetric> _iterations = [];
+    private MauiTimingStats? _warmStats;
+    private string? _reportJsonPath;
+    private ThreeRuntime? _activeRuntime;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _blazorComponentReadyMs = Stopwatch.GetElapsedTime(MauiProgram.AppStartTimestamp).TotalMilliseconds;
+            _nativeWebViewReadyMs = MainPage.NativeWebViewReadyMs;
+
+            string ua = "Unknown";
+            try
+            {
+                ua = await JS.InvokeAsync<string>("eval", "navigator.userAgent");
+            }
+            catch
+            {
+            }
+
+            var buildConfig = "Release";
+#if DEBUG
+            buildConfig = "Debug";
+#endif
+
+            _env = new MauiEnvironmentInfo(
+                Platform: DeviceInfo.Current.Platform.ToString(),
+                OperatingSystem: DeviceInfo.Current.VersionString,
+                DeviceModel: DeviceInfo.Current.Model,
+                WebViewUserAgent: ua,
+                BuildConfiguration: buildConfig);
+
+            _status = "WebView Ready";
+            StateHasChanged();
+
+            var autoRun = Environment.GetEnvironmentVariable("THREE_MAUI_AUTORUN");
+            if (autoRun == "1" || autoRun?.Equals("true", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                await RunValidationSuiteAsync();
+            }
+        }
+    }
+
+    private async Task RunValidationSuiteAsync()
+    {
+        if (_busy) return;
+        _busy = true;
+        _status = "Running validation suite...";
+        _iterations.Clear();
+        StateHasChanged();
+
+        try
+        {
+            // 1. Cold Startup: Create new runtime, measure Module Import, then Runtime Initialization
+            if (_activeRuntime is not null)
+            {
+                await _activeRuntime.DisposeAsync();
+                _activeRuntime = null;
+            }
+
+            _activeRuntime = new ThreeRuntime(JS);
+
+            // Cold Stage 1: Module Import
+            var importSw = Stopwatch.StartNew();
+            await _activeRuntime.ImportAsync();
+            importSw.Stop();
+            var moduleImportMs = importSw.Elapsed.TotalMilliseconds;
+
+            // Cold Stage 2: Runtime Initialization & Smoke Test
+            var initSw = Stopwatch.StartNew();
+            var initResult = await _activeRuntime.InitializeAsync();
+            initSw.Stop();
+            var runtimeInitMs = initSw.Elapsed.TotalMilliseconds;
+            var coldTotalMs = moduleImportMs + runtimeInitMs;
+
+            _upstream = await _activeRuntime.GetUpstreamInfoAsync();
+            _capabilities = await _activeRuntime.GetCapabilitiesAsync();
+
+            _iterations.Add(new MauiIterationMetric(
+                Iteration: 0,
+                Operation: "Cold Startup (Import + Init)",
+                IsCold: true,
+                ModuleImportMs: moduleImportMs,
+                RuntimeInitMs: runtimeInitMs,
+                TotalMs: coldTotalMs,
+                JsImportMs: initResult.Timings.ImportMs,
+                JsInitMs: initResult.Timings.InitializeMs,
+                JsTotalMs: initResult.Timings.TotalMs,
+                Error: null));
+
+            StateHasChanged();
+
+            // 2. Warm Operations on the ALREADY LOADED, ACTIVE runtime (without destroying it)
+            var warmOperations = new (string Name, Func<Task> Action)[]
+            {
+                ("Warm Re-Init Check (Idempotent)", () => _activeRuntime.InitializeAsync()),
+                ("Warm Capabilities Query", () => _activeRuntime.GetCapabilitiesAsync()),
+                ("Warm Upstream Metadata Query", () => _activeRuntime.GetUpstreamInfoAsync()),
+                ("Warm Capabilities Query", () => _activeRuntime.GetCapabilitiesAsync()),
+                ("Warm Upstream Metadata Query", () => _activeRuntime.GetUpstreamInfoAsync()),
+            };
+
+            for (int i = 0; i < warmOperations.Length; i++)
+            {
+                var (opName, action) = warmOperations[i];
+                var opSw = Stopwatch.StartNew();
+                string? opError = null;
+
+                try
+                {
+                    await action();
+                }
+                catch (Exception ex)
+                {
+                    opError = ex.Message;
+                }
+                finally
+                {
+                    opSw.Stop();
+                }
+
+                _iterations.Add(new MauiIterationMetric(
+                    Iteration: i + 1,
+                    Operation: opName,
+                    IsCold: false,
+                    ModuleImportMs: 0,
+                    RuntimeInitMs: opSw.Elapsed.TotalMilliseconds,
+                    TotalMs: opSw.Elapsed.TotalMilliseconds,
+                    JsImportMs: 0,
+                    JsInitMs: 0,
+                    JsTotalMs: 0,
+                    Error: opError));
+
+                StateHasChanged();
+            }
+
+            ComputeStats();
+            await SaveReportAsync();
+            _status = "Validation completed successfully";
+        }
+        catch (Exception ex)
+        {
+            _status = $"Validation failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ComputeStats()
+    {
+        var warmTimes = _iterations
+            .Where(it => !it.IsCold && it.Error == null)
+            .Select(it => it.TotalMs)
+            .OrderBy(t => t)
+            .ToList();
+
+        if (warmTimes.Count > 0)
+        {
+            var mean = warmTimes.Average();
+            double median;
+            int mid = warmTimes.Count / 2;
+            if (warmTimes.Count % 2 == 0)
+            {
+                median = (warmTimes[mid - 1] + warmTimes[mid]) / 2.0;
+            }
+            else
+            {
+                median = warmTimes[mid];
+            }
+
+            _warmStats = new MauiTimingStats(
+                Mean: mean,
+                Median: median,
+                Min: warmTimes.First(),
+                Max: warmTimes.Last());
+        }
+    }
+
+    private async Task SaveReportAsync()
+    {
+        if (_env is null || _warmStats is null) return;
+
+        var report = new MauiValidationReport(
+            Environment: _env,
+            NativeWebViewReadyMs: _nativeWebViewReadyMs,
+            BlazorComponentReadyMs: _blazorComponentReadyMs,
+            Iterations: _iterations,
+            WarmOperationStats: _warmStats,
+            ErrorCount: _iterations.Count(i => i.Error != null));
+
+        var json = JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true });
+
+        // Save to app directory
+        var fileName = $"maui-validation-{_env.Platform.ToLowerInvariant()}.json";
+        var localPath = Path.Combine(FileSystem.AppDataDirectory, fileName);
+        await File.WriteAllTextAsync(localPath, json);
+        _reportJsonPath = localPath;
+
+        // Also attempt to write to artifacts directory if accessible
+        try
+        {
+            var artifactsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "..", "..", "..", "..", "..", "artifacts");
+            if (Directory.Exists(artifactsDir))
+            {
+                var targetArtifact = Path.Combine(artifactsDir, fileName);
+                await File.WriteAllTextAsync(targetArtifact, json);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_activeRuntime is not null)
+        {
+            await _activeRuntime.DisposeAsync();
+            _activeRuntime = null;
+        }
+    }
+}

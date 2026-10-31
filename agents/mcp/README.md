@@ -6,7 +6,7 @@ The project keeps MCP configuration and startup helpers under `agents/mcp/` and 
 
 - **GitHub MCP** — repository, issue, pull-request and GitHub workflow context. Uses GitHub's official container image.
 - **Filesystem MCP** — scoped workspace file access. Uses the official MCP filesystem image and mounts only the repository workspace.
-- **Playwright MCP** — browser automation for validating Blazor/browser flows. Uses `npx @playwright/mcp@latest` and is installed automatically by `npx` when absent.
+- **Playwright MCP** — browser automation for validating Blazor/browser flows. Available via SSE/HTTP at `http://localhost:8931/mcp` (e.g. running in container or started locally via `scripts/Start-Mcp-Playwright.ps1`). Uses `npx @playwright/mcp@latest --port 8931` and is installed automatically by `npx` when absent.
 
 The GitHub and filesystem MCP containers are created once and then started/stopped as needed; they are not recreated on every agent session. Docker images are pulled on first initialization or when missing.
 
