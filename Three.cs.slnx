@@ -1,2 +1,5 @@
 <Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Three.cs/Three.cs.csproj" />
+  </Folder>
 </Solution>
