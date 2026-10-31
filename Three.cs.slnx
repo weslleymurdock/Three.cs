@@ -3,4 +3,7 @@
     <Project Path="src/Three.cs/Three.cs.csproj" />
     <Project Path="src/Three.Engine/Three.Engine.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Three.cs.Tests/Three.cs.Tests.csproj" />
+  </Folder>
 </Solution>
