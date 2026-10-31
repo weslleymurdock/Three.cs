@@ -1,90 +1,72 @@
 # Port Phase 01 — Foundation
 
+Phase 01 is structural and project-configuration work only. It contains **no** Three.js runtime, bindings, JavaScript bridge, lifecycle, hosting/DI, or rendering implementation. Those belong to Port Phases 02–04 (Issues #5–#7).
+
 ## Checklist
 
 - [x] Inspect the complete repository and identify template code without deleting project foundations.
-  - **Details**: Inspected `Three.cs.slnx`, `src/Three.cs/Three.cs.csproj`, `src/Three.Engine/Three.Engine.csproj`, and git submodule `lib/three.js`. Identified ASP.NET Core webapp template boilerplate in `Three.cs` (`Program.cs`, `appsettings*.json`, `Pages/`, `Properties/`, template `wwwroot/`) and placeholder `Class1.cs` in `Three.Engine`.
-  - **Files**: `Three.cs.slnx`, `src/Three.cs/*`, `src/Three.Engine/*`, `lib/three.js`.
-  - **Validation**: Verified repository structure, project configurations, and preserved project files.
+  - **Details**: Inspected `Three.cs.slnx`, `src/Three.cs/Three.cs.csproj`, `src/Three.Engine/Three.Engine.csproj`, and the `lib/three.js` submodule. Identified ASP.NET Core web host template boilerplate in `Three.cs` (`Program.cs`, `appsettings*.json`, `Pages/`, `Properties/`, template `wwwroot/` assets) and the `Class1.cs` placeholder in `Three.Engine`.
+  - **Validation**: Recorded in repository history; solution, both projects, project reference, and submodule are preserved (see evidence 1 and 3).
 
 - [x] Remove only obsolete template types/placeholders from `Three.cs`.
-  - **Details**: Removed obsolete ASP.NET Core web host files (`Program.cs`, `appsettings.json`, `appsettings.Development.json`, `Properties/launchSettings.json`, `Pages/`), Bootstrap/jQuery assets from `wwwroot/`, and `Class1.cs` placeholder from `Three.Engine`.
-  - **Files removed**: `src/Three.cs/Program.cs`, `src/Three.cs/Pages/*`, `src/Three.cs/Properties/*`, `src/Three.cs/wwwroot/{css,js,lib,favicon.ico}`, `src/Three.Engine/Class1.cs`.
-  - **Validation**: Git history tracks clean deletions, no functional or architecture types were removed.
+  - **Details**: Obsolete web host files, Bootstrap/jQuery `wwwroot` assets, and the `Three.Engine` `Class1.cs` placeholder are absent. No foundation project, reference, or submodule was removed.
+  - **Validation**: `TemplateRemovalTests` (8 theory cases + 1 fact) asserts these artifacts do not exist.
 
 - [x] Keep `Three.cs` as the existing RCL and prepare it for browser and MAUI Hybrid consumption.
-  - **Details**: Converted `Three.cs.csproj` from `Microsoft.NET.Sdk.Web` to `Microsoft.NET.Sdk.Razor`, added `SupportedPlatform Include="browser"`, and referenced `Microsoft.AspNetCore.Components.Web` (10.0.14). Configured `RootNamespace` as `Three`.
-  - **Files**: `src/Three.cs/Three.cs.csproj`.
-  - **Validation**: Verified compilation as a class library consumable by Blazor WASM and MAUI Hybrid targets.
+  - **Details**: `Three.cs.csproj` uses `Microsoft.NET.Sdk.Razor` (not `Microsoft.NET.Sdk.Web`), declares `SupportedPlatform Include="browser"`, references `Microsoft.AspNetCore.Components.Web` 10.0.14, and sets `RootNamespace` to `Three`.
+  - **Validation**: `ProjectConfigurationTests` (`ThreeCs_ConfiguredWithRazorSdkAndWebComponents`, `ThreeCs_ConfiguredWithRootNamespaceThree`). Browser/MAUI Hybrid *hosting* is not validated in this phase.
 
 - [x] Define supported .NET 10 target frameworks without introducing platform code into the RCL.
-  - **Details**: Pinned portable `net10.0` target framework on `Three.cs` and `Three.Engine`. No MAUI platform-specific packages or platform TFMs were introduced into core libraries, preserving host independence.
-  - **Files**: `src/Three.cs/Three.cs.csproj`, `src/Three.Engine/Three.Engine.csproj`.
-  - **Validation**: `PlatformIndependenceTests` verifies absence of platform dependencies in both compiled assemblies and project configurations.
+  - **Details**: `Three.cs` and `Three.Engine` target the portable `net10.0` TFM with nullable and implicit usings enabled. No MAUI or platform packages/TFMs are referenced.
+  - **Validation**: `ProjectConfigurationTests` (`Projects_TargetDotNet10`, `Projects_HaveNullableAndImplicitUsingsEnabled`), `PlatformIndependenceTests`, and `AssemblyLoadingTests.Assembly_TargetsExpectedFramework`.
 
 - [x] Establish static asset/module and JS interop folder conventions.
-  - **Details**: Created `src/Three.cs/wwwroot/three/` (for future Three.js modules/bundles) and `src/Three.cs/wwwroot/js/` (for future bridge/interop code), preserved structurally with `.gitkeep`. Submodule `lib/three.js` is preserved untouched.
-  - **Files**: `src/Three.cs/wwwroot/three/.gitkeep`, `src/Three.cs/wwwroot/js/.gitkeep`.
-  - **Validation**: `StaticAssetOrganizationTests` validates directory existence and Git persistence markers.
+  - **Details**: `src/Three.cs/wwwroot/three/` and `src/Three.cs/wwwroot/js/` exist as empty, `.gitkeep`-tracked locations for future runtime assets and interop scripts. Three.js is neither ported nor bundled. The `lib/three.js` submodule is untouched.
+  - **Validation**: `StaticAssetOrganizationTests`.
 
-- [x] Establish namespace conventions for bindings, runtime, interop, and lifecycle.
-  - **Details**: Set root namespace to `Three` and established architectural directories with foundation contracts and implementations: `Lifecycle/` (`ThreeLifecycleState`, `IThreeLifecycle`, `ThreeLifecycle`), `Interop/` (`JsInteropConstants`, `JsBridgeException`, `IJsBridge`, `JsBridge`), `Hosting/` (`ThreeOptions`, `ServiceCollectionExtensions`), and `Runtime/` (`IThreeRuntime`, `ThreeRuntime`).
-  - **Files**: `src/Three.cs/Lifecycle/*`, `src/Three.cs/Interop/*`, `src/Three.cs/Hosting/*`, `src/Three.cs/Runtime/*`.
-  - **Validation**: `ArchitecturalDirectoryTests`, `ProjectConfigurationTests`, and domain unit tests validate architecture, conventions, and runtime behavior.
+- [x] Establish namespace and directory conventions for bindings, runtime, interop, lifecycle, and hosting.
+  - **Details**: Structural preparation only. `src/Three.cs/{Bindings,Runtime,Interop,Lifecycle,Hosting}/` exist as empty, `.gitkeep`-tracked directories under root namespace `Three` (folder-derived namespaces, e.g. `Three.Interop`). No types, contracts, or implementations are placed in them; they are populated by later phases.
+  - **Validation**: `ArchitecturalDirectoryTests` (directory + `.gitkeep` for all five), `ProjectConfigurationTests.ThreeCs_ConfiguredWithRootNamespaceThree`.
 
 - [x] Define the test strategy and first smoke-test location.
-  - **Details**: Created test suite project `tests/Three.cs.Tests/` using xUnit and .NET 10, referenced both `Three.cs` and `Three.Engine`, and registered the project under `/tests/` in `Three.cs.slnx`. Implemented modular test architecture with exactly one type per file covering assembly loading, dependencies, platform independence, static assets, directory structure, configuration, lifecycle, JS bridge, options, and DI registration.
-  - **Files**: `tests/Three.cs.Tests/Three.cs.Tests.csproj`, `tests/Three.cs.Tests/*`, `Three.cs.slnx`.
-  - **Validation**: `dotnet test Three.cs.slnx` runs and passes 102/102 tests.
+  - **Details**: `tests/Three.cs.Tests/` (xUnit, `net10.0`) references `Three.cs` and `Three.Engine` and is registered under `/tests/` in `Three.cs.slnx`. The suite validates structure and project configuration only: assembly loading, solution registration, project reference, .NET 10, nullable, RCL configuration, root namespace, platform independence, template removal, architectural directories, and static asset directories. One type per file.
+  - **Validation**: `dotnet test` result in evidence 3; `ProjectDependencyTests` validates solution registration and the `Three.Engine` → `Three.cs` project reference.
 
 - [x] Apply `docs/GUIDELINES.md` to new code.
-  - **Details**: Ensured .NET 10 SDK compatibility, nullable reference types enabled across all projects, one type per source file strictly enforced, host independence verified, determinism maintained, no blocking waits (`.Result`, `.Wait()`), explicit ownership and disposal, and deliberate DI extensions.
-  - **Files**: All modified/created project and source files.
-  - **Validation**: Solution compiles cleanly with zero warnings and zero errors.
+  - **Details**: The only new C# code is test code, one type per file, nullable enabled. There is no production code, so async/cancellation, concurrency, interop, disposal, and DI guidelines have nothing to apply to yet and are intentionally deferred to the phases that introduce those concerns.
+  - **Validation**: Release build with 0 warnings and 0 errors (evidence 2); source review of the final diff.
 
 - [x] Restore/build/test the solution successfully.
-  - **Details**: Executed solution restore, build, and test suite with cross-platform code coverage collection. Verified `Three.Engine -> Three.cs` project reference works and assemblies load correctly.
-  - **Commands**:
-    - `dotnet restore Three.cs.slnx` -> All projects up to date.
-    - `dotnet build Three.cs.slnx --configuration Release` -> 0 Warnings, 0 Errors.
-    - `dotnet test Three.cs.slnx --configuration Release --collect:"XPlat Code Coverage" --results-directory artifacts/test-results` -> 102 Passed, 0 Failed, 0 Skipped.
-  - **Validation**: Automated CLI outputs recorded.
+  - **Validation**: Evidence 2 and 3 below.
+
+- [ ] Coverage quality gate for executable production code (≥ 90% line, method, and branch).
+  - **Status**: **Not applicable for Phase 01 and not claimed as passed.** `Three.cs` and `Three.Engine` contain no executable production code, so ReportGenerator reports 0 coverable lines, 0 branches, and 0 methods (see evidence 4). The gate applies, per metric, to the first phase that adds executable production code.
 
 - [x] Record validation evidence before checking items.
-  - **Details**: Validation evidence recorded below.
+  - **Details**: Evidence below was produced by executing the listed commands.
 
 ## Validation Evidence
 
-### 1. Git Submodule Check
-- **Command**: `git submodule status`
-- **Output**: `cb0a902b668f848b2a0b6e1fb8f928f5a8ef1168 lib/three.js (r187-5-gcb0a902b66)`
-- **Status**: Submodule remains pinned at target commit without modifications.
+Environment: Windows, .NET SDK 10, repository-local tools.
 
-### 2. Solution Build
-- **Command**: `dotnet build Three.cs.slnx --configuration Release`
-- **Result**:
-  - `Three.cs -> src\Three.cs\bin\Release\net10.0\Three.cs.dll`
-  - `Three.Engine -> src\Three.Engine\bin\Release\net10.0\Three.Engine.dll`
-  - `Three.cs.Tests -> tests\Three.cs.Tests\bin\Release\net10.0\Three.cs.Tests.dll`
-  - Build succeeded with 0 Warnings, 0 Errors.
+### 1. Local tool and submodule
+- `dotnet tool restore` → restored `dotnet-reportgenerator-globaltool` 5.5.12.
+- `dotnet tool list --local` → `dotnet-reportgenerator-globaltool 5.5.12 reportgenerator` from `.config/dotnet-tools.json` (the manifest is the source of truth; version 5.5.12).
+- `git submodule status` → `cb0a902b668f848b2a0b6e1fb8f928f5a8ef1168 lib/three.js (r187-5-gcb0a902b66)` (unchanged).
 
-### 3. Test Suite Execution
-- **Command**: `dotnet test Three.cs.slnx --configuration Release --collect:"XPlat Code Coverage" --results-directory artifacts/test-results`
-- **Result**:
-  - Test run completed with 102 tests passed, 0 failed, 0 skipped.
-  - Validates assembly loading, cross-project references, platform independence, architectural directory layout, static asset folder conventions, lifecycle transitions, JS interop bridge, hosting options, and dependency injection registration.
+### 2. Restore and build
+- `dotnet restore Three.cs.slnx` → all projects up to date.
+- `dotnet build Three.cs.slnx --configuration Release` → succeeded, 0 warnings, 0 errors (`Three.cs`, `Three.Engine`, `Three.cs.Tests`).
 
-### 4. Code Coverage Quality Gate (ReportGenerator)
-- **Tool Version**: `dotnet-reportgenerator-globaltool` 5.5.12
-- **Command**: `dotnet tool run reportgenerator "-reports:artifacts/test-results/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage" "-reporttypes:MarkdownSummary;TextSummary"`
-- **Output Locations**:
-  - `artifacts/coverage/Summary.md`
-  - `artifacts/coverage/Summary.txt`
-- **Measured Metrics**:
-  - **Line coverage**: 98.3% (179 of 182 lines) (Threshold: >= 90.0% — PASSED)
-  - **Method coverage**: 100.0% (29 of 29 methods) (Threshold: >= 90.0% — PASSED)
-  - **Branch coverage**: 91.0% (71 of 78 branches) (Threshold: >= 90.0% — PASSED)
+### 3. Tests
+- `dotnet test Three.cs.slnx --configuration Release --collect:"XPlat Code Coverage" --results-directory artifacts/test-results` → 39 passed, 0 failed, 0 skipped.
+
+### 4. Coverage (ReportGenerator)
+- `dotnet tool run reportgenerator "-reports:artifacts/test-results/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage" "-reporttypes:MarkdownSummary;TextSummary"` → produced `artifacts/coverage/Summary.md` and `artifacts/coverage/Summary.txt`.
+- Both summaries report: Assemblies 0, Classes 0, Files 0, Coverable lines 0, Total branches 0, Total methods 0, and "No assemblies have been covered." Line, branch, and method percentages are empty because there is nothing to measure.
+- **Measured coverage**: none. **Not applicable**: line, method, and branch coverage (no executable production code). **Failed gates**: none. The 90% thresholds were neither met nor claimed.
+- Note: `Summary.md` prints method coverage as a sponsors-only ReportGenerator feature; `Summary.txt` is the authoritative method-count source.
 
 ## Exit criteria
 
-The existing solution and submodule remain intact, template placeholders are removed, foundation contracts and types are implemented with strict one-type-per-file compliance, the project structure is ready for the runtime port, and all quality gates (0 warnings, 102/102 tests passing, and >=90% line, method, and branch coverage) pass cleanly.
+The existing solution, projects, project reference, and submodule remain intact; template placeholders are removed; the RCL and directory/asset structure are ready for the runtime port; and the structural test suite passes (39/39) with 0 build warnings. No runtime, bindings, bridge, lifecycle, or hosting implementation exists in this phase. The coverage gate is not applicable until executable production code exists.
