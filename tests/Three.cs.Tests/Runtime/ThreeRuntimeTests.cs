@@ -79,3 +79,4 @@ public class ThreeRuntimeTests
         Assert.Equal("app-canvas-", runtime.Options.CanvasIdPrefix);
     }
 }
+

@@ -55,3 +55,4 @@ public class ProjectDependencyTests
         Assert.True(File.Exists(resolvedPath), $"Project declared in solution does not exist at '{resolvedPath}'.");
     }
 }
+

@@ -59,3 +59,4 @@ public class ServiceCollectionExtensionsTests
         Assert.True(options.EnableDebugDiagnostics);
     }
 }
+

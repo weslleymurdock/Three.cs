@@ -27,3 +27,4 @@ public interface IThreeLifecycle : IAsyncDisposable
     /// <returns>A task that represents the asynchronous initialization operation.</returns>
     ValueTask InitializeAsync(CancellationToken cancellationToken = default);
 }
+

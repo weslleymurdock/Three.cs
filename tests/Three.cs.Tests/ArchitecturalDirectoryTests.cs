@@ -17,3 +17,4 @@ public class ArchitecturalDirectoryTests
         Assert.True(File.Exists(gitkeepPath), $"Expected .gitkeep tracking marker at '{gitkeepPath}'.");
     }
 }
+

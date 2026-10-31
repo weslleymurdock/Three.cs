@@ -14,3 +14,4 @@ public class JsInteropConstantsTests
         Assert.Equal("dispose", JsInteropConstants.DisposeMethod);
     }
 }
+

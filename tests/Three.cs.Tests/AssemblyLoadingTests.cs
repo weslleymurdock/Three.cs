@@ -28,3 +28,4 @@ public class AssemblyLoadingTests
         Assert.StartsWith(".NETCoreApp,Version=v10.0", targetFramework.FrameworkName, StringComparison.Ordinal);
     }
 }
+

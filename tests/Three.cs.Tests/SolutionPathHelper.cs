@@ -28,3 +28,4 @@ internal static class SolutionPathHelper
         throw new DirectoryNotFoundException("Could not locate solution root containing Three.cs.slnx");
     }
 }
+

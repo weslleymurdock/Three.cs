@@ -36,3 +36,4 @@ public interface IJsBridge : IAsyncDisposable
     /// <returns>A task returning the invocation result.</returns>
     ValueTask<TResult> InvokeAsync<TResult>(string identifier, CancellationToken cancellationToken = default, params object?[]? args);
 }
+

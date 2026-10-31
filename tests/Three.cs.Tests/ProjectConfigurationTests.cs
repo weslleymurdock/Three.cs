@@ -68,3 +68,4 @@ public class ProjectConfigurationTests
         Assert.Equal("Three", rootNamespace);
     }
 }
+

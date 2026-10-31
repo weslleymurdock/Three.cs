@@ -21,3 +21,4 @@ public class StaticAssetOrganizationTests
         Assert.True(File.Exists(gitkeepPath), $"Expected .gitkeep tracking marker at '{gitkeepPath}'.");
     }
 }
+

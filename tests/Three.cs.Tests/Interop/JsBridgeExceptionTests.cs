@@ -23,3 +23,4 @@ public class JsBridgeExceptionTests
         Assert.Same(inner, exception.InnerException);
     }
 }
+

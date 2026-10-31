@@ -30,3 +30,4 @@ public static class JsInteropConstants
     /// </summary>
     public const string DisposeMethod = "dispose";
 }
+
