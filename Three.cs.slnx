@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Three.cs/Three.cs.csproj" />
+    <Project Path="src/Three.Engine/Three.Engine.csproj" />
   </Folder>
 </Solution>
