@@ -34,6 +34,20 @@ public class ProjectDependencyTests
         }
     }
 
+    [Fact]
+    public void ThreeCs_DoesNotReferenceThreeEngine()
+    {
+        var csprojPath = Path.Combine(SolutionPathHelper.SolutionRoot, "src", "Three.cs", "Three.cs.csproj");
+        Assert.True(File.Exists(csprojPath), $"Could not find Three.cs.csproj at '{csprojPath}'.");
+
+        var doc = XDocument.Load(csprojPath);
+        var projectReferences = doc.Descendants("ProjectReference")
+            .Select(element => element.Attribute("Include")?.Value)
+            .ToList();
+
+        Assert.Empty(projectReferences);
+    }
+
     [Theory]
     [InlineData("src/Three.cs/Three.cs.csproj")]
     [InlineData("src/Three.Engine/Three.Engine.csproj")]

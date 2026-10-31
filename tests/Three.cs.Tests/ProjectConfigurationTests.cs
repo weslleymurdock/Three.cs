@@ -24,6 +24,20 @@ public class ProjectConfigurationTests
         Assert.NotNull(webPackage);
     }
 
+    [Fact]
+    public void ThreeCs_DeclaresOnlyTheWebComponentsPackage()
+    {
+        var csprojPath = Path.Combine(SolutionPathHelper.SolutionRoot, "src", "Three.cs", "Three.cs.csproj");
+        Assert.True(File.Exists(csprojPath), $"Could not find Three.cs.csproj at '{csprojPath}'.");
+
+        var doc = XDocument.Load(csprojPath);
+        var packages = doc.Descendants("PackageReference")
+            .Select(element => element.Attribute("Include")?.Value)
+            .ToList();
+
+        Assert.Equal(["Microsoft.AspNetCore.Components.Web"], packages);
+    }
+
     [Theory]
     [InlineData("src/Three.cs/Three.cs.csproj")]
     [InlineData("src/Three.Engine/Three.Engine.csproj")]
