@@ -37,6 +37,17 @@ public class ThreeRuntimeAssetIntegrityTests
         var computedLicenseSha = ComputeSha256(licensePath);
         Assert.Equal(licenseSha256, computedLicenseSha);
 
+        // Verify JavaScript provenance metadata module matches upstream.json
+        var jsPath = Path.Combine(solutionRoot, "src", "Three.cs", "wwwroot", "js", "three-upstream.js");
+        Assert.True(File.Exists(jsPath), "three-upstream.js must exist in wwwroot/js");
+        var jsContent = File.ReadAllText(jsPath);
+        Assert.Contains($"name: '{root.GetProperty("name").GetString()}'", jsContent);
+        Assert.Contains($"version: '{root.GetProperty("version").GetString()}'", jsContent);
+        Assert.Contains($"revision: '{root.GetProperty("revision").GetString()}'", jsContent);
+        Assert.Contains($"commit: '{root.GetProperty("commit").GetString()}'", jsContent);
+        Assert.Contains($"license: '{root.GetProperty("license").GetString()}'", jsContent);
+        Assert.Contains($"repository: '{root.GetProperty("repository").GetString()}'", jsContent);
+
         foreach (var fileElem in root.GetProperty("files").EnumerateArray())
         {
             var relativePath = fileElem.GetProperty("path").GetString()!;

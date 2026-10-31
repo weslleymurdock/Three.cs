@@ -1,11 +1,11 @@
-name: Build & Test
+name: Build, Test & Quality Gate
 
 on:
   push:
     branches:
-      - main 
+      - main
   pull_request:
-    tyoes:
+    types:
       - opened
       - reopened
       - synchronize
@@ -16,28 +16,33 @@ permissions:
 
 jobs:
   build-test:
-    name: Build & Test 
+    name: Build, Test & Coverage Gate
     runs-on: windows-latest
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
       - name: Setup .NET 10 SDK
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: '24.x'
 
       - name: Restore local .NET tools
         shell: pwsh
         run: dotnet tool restore
+
+      - name: Verify Three.js runtime assets integrity
+        shell: pwsh
+        run: pwsh -NoProfile -File scripts/Sync-ThreeRuntime.ps1 -Check
 
       - name: Restore solution dependencies
         shell: pwsh
@@ -70,7 +75,7 @@ jobs:
         run: pwsh -NoProfile -File scripts/Evaluate-QualityGate.ps1
 
       - name: Upload Test Results Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
           name: test-results
@@ -78,10 +83,9 @@ jobs:
           retention-days: 14
 
       - name: Upload Coverage Report Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
           name: coverage-report
           path: artifacts/coverage
           retention-days: 14
-

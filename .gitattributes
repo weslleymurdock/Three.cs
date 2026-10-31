@@ -2,3 +2,6 @@
 # The integrity hashes in src/Three.cs/wwwroot/three/upstream.json are verified by tests.
 src/Three.cs/wwwroot/three/** -text
 
+# JavaScript runtime files and generated provenance metadata must keep LF line endings across all platforms.
+src/Three.cs/wwwroot/js/** text eol=lf
+tests/js/** text eol=lf
