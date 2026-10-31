@@ -32,6 +32,39 @@ public sealed class ThreeRuntime(IJSRuntime jsRuntime) : IThreeRuntime
     public ThreeRuntimeState State => (ThreeRuntimeState)Volatile.Read(ref _state);
 
     /// <inheritdoc />
+    public async Task ImportAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            ThrowIfDisposed();
+            if (_module is not null)
+            {
+                return;
+            }
+
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
+            try
+            {
+                _module = await ImportModuleAsync(linked.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception)
+            {
+                SetState(ThreeRuntimeState.Failed);
+                throw;
+            }
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<ThreeRuntimeInitialization> InitializeAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);

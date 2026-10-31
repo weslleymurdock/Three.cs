@@ -11,6 +11,17 @@ public interface IThreeRuntime : IAsyncDisposable
     ThreeRuntimeState State { get; }
 
     /// <summary>
+    /// Pre-imports the JavaScript runtime entry point module from the RCL Static Web Assets.
+    /// Calling this before <see cref="InitializeAsync"/> allows measuring module import duration separately
+    /// from runtime verification. If not called explicitly, <see cref="InitializeAsync"/> imports the module automatically.
+    /// </summary>
+    /// <param name="cancellationToken">Cancels the operation.</param>
+    /// <exception cref="ThreeRuntimeException">Importing the module from Static Web Assets failed.</exception>
+    /// <exception cref="OperationCanceledException">The operation was cancelled.</exception>
+    /// <exception cref="ObjectDisposedException">The runtime was disposed.</exception>
+    Task ImportAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Imports the runtime module and initializes Three.js. Concurrent calls are serialized and calling it
     /// again once <see cref="ThreeRuntimeState.Ready"/> returns the same result without reloading.
     /// </summary>

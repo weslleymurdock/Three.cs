@@ -5,6 +5,7 @@ namespace Three.Validation.Maui.Models;
 /// </summary>
 public sealed record MauiIterationMetric(
     int Iteration,
+    string Operation,
     bool IsCold,
     double ModuleImportMs,
     double RuntimeInitMs,
@@ -13,4 +14,3 @@ public sealed record MauiIterationMetric(
     double JsInitMs,
     double JsTotalMs,
     string? Error);
-

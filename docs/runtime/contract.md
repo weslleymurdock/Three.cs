@@ -78,6 +78,8 @@ This resolves correctly against the document base URI in both Blazor WASM and MA
 | `disposed` | `initialize` or `query` | Operation attempted on disposed runtime or disposed during in-flight initialization. |
 
 ## C# Integration (`Three.Runtime`)
-- `IThreeRuntime`: interface exposing `State`, `InitializeAsync`, `GetUpstreamInfoAsync`, `GetCapabilitiesAsync`, and `IAsyncDisposable`.
+- `IThreeRuntime`: interface exposing `State`, `ImportAsync`, `InitializeAsync`, `GetUpstreamInfoAsync`, `GetCapabilitiesAsync`, and `IAsyncDisposable`.
+  - `ImportAsync`: idempotently loads the underlying JavaScript module reference (`./_content/Three.cs/js/three-runtime.js`) via `IJSRuntime`, enabling hosts and diagnostic tooling to measure module import latency separately from runtime verification.
+  - `InitializeAsync`: imports the module (if not already imported) and invokes JavaScript `initialize()`, returning structured metadata, capability groups, environment flags (WebGL2), and JS performance timings.
 - `ThreeRuntime`: thread-safe implementation using an asynchronous gate (`SemaphoreSlim`), propagating `CancellationToken`, providing idempotent disposal, and converting JS errors into typed `ThreeRuntimeException`.
 

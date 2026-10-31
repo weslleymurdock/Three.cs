@@ -16,20 +16,21 @@
 @if (_env is not null)
 {
     <section>
-        <h2>Environment</h2>
+        <h2>Environment & WebView Timing</h2>
         <ul>
             <li><strong>Platform:</strong> <span data-testid="env-platform">@_env.Platform</span></li>
             <li><strong>OS:</strong> <span data-testid="env-os">@_env.OperatingSystem</span></li>
             <li><strong>Device:</strong> <span data-testid="env-device">@_env.DeviceModel</span></li>
             <li><strong>Config:</strong> <span data-testid="env-config">@_env.BuildConfiguration</span></li>
             <li><strong>WebView UA:</strong> <span data-testid="env-ua">@_env.WebViewUserAgent</span></li>
-            <li><strong>WebView Ready:</strong> <span data-testid="webview-ready">@_webViewReadyMs.ToString("F1") ms</span></li>
+            <li><strong>Native WebView Ready:</strong> <span data-testid="native-webview-ready">@(_nativeWebViewReadyMs >= 0 ? $"{_nativeWebViewReadyMs:F2} ms" : "Event pending")</span></li>
+            <li><strong>Blazor Component Ready:</strong> <span data-testid="blazor-ready">@_blazorComponentReadyMs.ToString("F2") ms</span></li>
         </ul>
     </section>
 }
 
 <p>
-    <button data-testid="btn-run" @onclick="RunValidationSuiteAsync" disabled="@_busy">Run Validation Suite (1 Cold + 5 Warm)</button>
+    <button data-testid="btn-run" @onclick="RunValidationSuiteAsync" disabled="@_busy">Run Validation Suite (Cold + 5 Warm)</button>
 </p>
 
 @if (_upstream is not null)
@@ -65,8 +66,11 @@
             <thead>
                 <tr>
                     <th>#</th>
+                    <th>Operation</th>
                     <th>Type</th>
-                    <th>C# Interop Total (ms)</th>
+                    <th>C# Module Import (ms)</th>
+                    <th>C# Runtime Init / Op (ms)</th>
+                    <th>C# Total (ms)</th>
                     <th>JS Import (ms)</th>
                     <th>JS Init (ms)</th>
                     <th>JS Total (ms)</th>
@@ -78,11 +82,14 @@
                 {
                     <tr>
                         <td>@it.Iteration</td>
+                        <td>@it.Operation</td>
                         <td>@(it.IsCold ? "Cold" : "Warm")</td>
-                        <td>@it.TotalMs.ToString("F1")</td>
-                        <td>@it.JsImportMs.ToString("F1")</td>
-                        <td>@it.JsInitMs.ToString("F1")</td>
-                        <td>@it.JsTotalMs.ToString("F1")</td>
+                        <td>@(it.IsCold ? it.ModuleImportMs.ToString("F2") : "-")</td>
+                        <td>@it.RuntimeInitMs.ToString("F2")</td>
+                        <td>@it.TotalMs.ToString("F2")</td>
+                        <td>@(it.IsCold ? it.JsImportMs.ToString("F2") : "-")</td>
+                        <td>@(it.IsCold ? it.JsInitMs.ToString("F2") : "-")</td>
+                        <td>@(it.IsCold ? it.JsTotalMs.ToString("F2") : "-")</td>
                         <td>@(it.Error ?? "Success")</td>
                     </tr>
                 }
@@ -94,12 +101,12 @@
 @if (_warmStats is not null)
 {
     <section>
-        <h2>Warm Execution Stats (C# Total)</h2>
+        <h2>Warm Operations Statistics (Active Runtime)</h2>
         <ul>
-            <li><strong>Mean:</strong> @_warmStats.Mean.ToString("F1") ms</li>
-            <li><strong>Median:</strong> @_warmStats.Median.ToString("F1") ms</li>
-            <li><strong>Min:</strong> @_warmStats.Min.ToString("F1") ms</li>
-            <li><strong>Max:</strong> @_warmStats.Max.ToString("F1") ms</li>
+            <li><strong>Mean:</strong> @_warmStats.Mean.ToString("F2") ms</li>
+            <li><strong>Median:</strong> @_warmStats.Median.ToString("F2") ms</li>
+            <li><strong>Min:</strong> @_warmStats.Min.ToString("F2") ms</li>
+            <li><strong>Max:</strong> @_warmStats.Max.ToString("F2") ms</li>
         </ul>
     </section>
 }
@@ -114,7 +121,8 @@
 @code {
     private string _status = "Initializing WebView...";
     private bool _busy;
-    private double _webViewReadyMs;
+    private double _nativeWebViewReadyMs = -1;
+    private double _blazorComponentReadyMs;
     private MauiEnvironmentInfo? _env;
     private ThreeUpstreamInfo? _upstream;
     private ThreeRuntimeCapabilities? _capabilities;
@@ -127,7 +135,9 @@
     {
         if (firstRender)
         {
-            _webViewReadyMs = Stopwatch.GetElapsedTime(MauiProgram.AppStartTimestamp).TotalMilliseconds;
+            _blazorComponentReadyMs = Stopwatch.GetElapsedTime(MauiProgram.AppStartTimestamp).TotalMilliseconds;
+            _nativeWebViewReadyMs = MainPage.NativeWebViewReadyMs;
+
             string ua = "Unknown";
             try
             {
@@ -170,11 +180,86 @@
 
         try
         {
-            // 1 Cold iteration + 5 Warm iterations
-            for (int i = 0; i <= 5; i++)
+            // 1. Cold Startup: Create new runtime, measure Module Import, then Runtime Initialization
+            if (_activeRuntime is not null)
             {
-                bool isCold = i == 0;
-                await RunSingleIterationAsync(i, isCold);
+                await _activeRuntime.DisposeAsync();
+                _activeRuntime = null;
+            }
+
+            _activeRuntime = new ThreeRuntime(JS);
+
+            // Cold Stage 1: Module Import
+            var importSw = Stopwatch.StartNew();
+            await _activeRuntime.ImportAsync();
+            importSw.Stop();
+            var moduleImportMs = importSw.Elapsed.TotalMilliseconds;
+
+            // Cold Stage 2: Runtime Initialization & Smoke Test
+            var initSw = Stopwatch.StartNew();
+            var initResult = await _activeRuntime.InitializeAsync();
+            initSw.Stop();
+            var runtimeInitMs = initSw.Elapsed.TotalMilliseconds;
+            var coldTotalMs = moduleImportMs + runtimeInitMs;
+
+            _upstream = await _activeRuntime.GetUpstreamInfoAsync();
+            _capabilities = await _activeRuntime.GetCapabilitiesAsync();
+
+            _iterations.Add(new MauiIterationMetric(
+                Iteration: 0,
+                Operation: "Cold Startup (Import + Init)",
+                IsCold: true,
+                ModuleImportMs: moduleImportMs,
+                RuntimeInitMs: runtimeInitMs,
+                TotalMs: coldTotalMs,
+                JsImportMs: initResult.Timings.ImportMs,
+                JsInitMs: initResult.Timings.InitializeMs,
+                JsTotalMs: initResult.Timings.TotalMs,
+                Error: null));
+
+            StateHasChanged();
+
+            // 2. Warm Operations on the ALREADY LOADED, ACTIVE runtime (without destroying it)
+            var warmOperations = new (string Name, Func<Task> Action)[]
+            {
+                ("Warm Re-Init Check (Idempotent)", () => _activeRuntime.InitializeAsync()),
+                ("Warm Capabilities Query", () => _activeRuntime.GetCapabilitiesAsync()),
+                ("Warm Upstream Metadata Query", () => _activeRuntime.GetUpstreamInfoAsync()),
+                ("Warm Capabilities Query", () => _activeRuntime.GetCapabilitiesAsync()),
+                ("Warm Upstream Metadata Query", () => _activeRuntime.GetUpstreamInfoAsync()),
+            };
+
+            for (int i = 0; i < warmOperations.Length; i++)
+            {
+                var (opName, action) = warmOperations[i];
+                var opSw = Stopwatch.StartNew();
+                string? opError = null;
+
+                try
+                {
+                    await action();
+                }
+                catch (Exception ex)
+                {
+                    opError = ex.Message;
+                }
+                finally
+                {
+                    opSw.Stop();
+                }
+
+                _iterations.Add(new MauiIterationMetric(
+                    Iteration: i + 1,
+                    Operation: opName,
+                    IsCold: false,
+                    ModuleImportMs: 0,
+                    RuntimeInitMs: opSw.Elapsed.TotalMilliseconds,
+                    TotalMs: opSw.Elapsed.TotalMilliseconds,
+                    JsImportMs: 0,
+                    JsInitMs: 0,
+                    JsTotalMs: 0,
+                    Error: opError));
+
                 StateHasChanged();
             }
 
@@ -193,57 +278,14 @@
         }
     }
 
-    private async Task RunSingleIterationAsync(int index, bool isCold)
-    {
-        if (_activeRuntime is not null)
-        {
-            await _activeRuntime.DisposeAsync();
-            _activeRuntime = null;
-        }
-
-        _activeRuntime = new ThreeRuntime(JS);
-        var sw = Stopwatch.StartNew();
-        string? error = null;
-        ThreeRuntimeInitialization? init = null;
-
-        try
-        {
-            init = await _activeRuntime.InitializeAsync();
-            if (isCold)
-            {
-                _upstream = await _activeRuntime.GetUpstreamInfoAsync();
-                _capabilities = await _activeRuntime.GetCapabilitiesAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            error = ex.Message;
-        }
-        finally
-        {
-            sw.Stop();
-        }
-
-        var totalMs = sw.Elapsed.TotalMilliseconds;
-        var jsImport = init?.Timings.ImportMs ?? 0;
-        var jsInit = init?.Timings.InitializeMs ?? 0;
-        var jsTotal = init?.Timings.TotalMs ?? 0;
-
-        _iterations.Add(new MauiIterationMetric(
-            Iteration: index,
-            IsCold: isCold,
-            ModuleImportMs: 0, // In C# API InitializeAsync encapsulates import + verify
-            RuntimeInitMs: jsInit,
-            TotalMs: totalMs,
-            JsImportMs: jsImport,
-            JsInitMs: jsInit,
-            JsTotalMs: jsTotal,
-            Error: error));
-    }
-
     private void ComputeStats()
     {
-        var warmTimes = _iterations.Where(it => !it.IsCold && it.Error == null).Select(it => it.TotalMs).OrderBy(t => t).ToList();
+        var warmTimes = _iterations
+            .Where(it => !it.IsCold && it.Error == null)
+            .Select(it => it.TotalMs)
+            .OrderBy(t => t)
+            .ToList();
+
         if (warmTimes.Count > 0)
         {
             var mean = warmTimes.Average();
@@ -272,9 +314,10 @@
 
         var report = new MauiValidationReport(
             Environment: _env,
-            WebViewReadyMs: _webViewReadyMs,
+            NativeWebViewReadyMs: _nativeWebViewReadyMs,
+            BlazorComponentReadyMs: _blazorComponentReadyMs,
             Iterations: _iterations,
-            WarmTotalStats: _warmStats,
+            WarmOperationStats: _warmStats,
             ErrorCount: _iterations.Count(i => i.Error != null));
 
         var json = JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true });
@@ -309,4 +352,3 @@
         }
     }
 }
-

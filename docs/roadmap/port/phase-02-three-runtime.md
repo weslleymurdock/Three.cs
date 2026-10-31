@@ -32,7 +32,7 @@ Phase 02 integrates the pinned upstream Three.js JavaScript runtime into the `Th
 - [x] Add runtime smoke tests.
   - **Details**: Automated tests covering contract exports, module import, dependency resolution, capabilities, concurrency, error states, cancellation, idempotent disposal, and static web asset integrity.
   - **Files**: `tests/js/three-runtime.test.js`, `tests/Three.cs.Tests/ThreeRuntimeLifecycleTests.cs`, `tests/Three.cs.Tests/ThreeRuntimeAssetIntegrityTests.cs`, `tests/Three.cs.Tests/ThreeRuntimeModelTests.cs`, `tests/Three.cs.Tests/NodeJsRuntimeTests.cs`.
-  - **Validation**: Evidence 2 & Evidence 3 (86 passed).
+  - **Validation**: Evidence 2 & Evidence 3 (91 passed).
 
 - [x] Validate loading in Blazor WASM.
   - **Details**: Created `tests/Three.cs.Validation.BlazorWasm`. Published and validated in a real Chromium browser via Playwright MCP (`http://localhost:8931/mcp`). Verified Static Web Asset loading, runtime initialization, upstream info, capabilities (`WebGL2: True`), disposal, repeat initialization, and error handling.
@@ -72,10 +72,10 @@ Command: `node --test tests/js/three-runtime.test.js`
 ### 3. .NET Unit & Boundary Test Suite
 Command:
 ```powershell
-dotnet test Three.cs.slnx --configuration Release --collect:"XPlat Code Coverage" --results-directory artifacts/test-results
+dotnet test Three.cs.slnx --configuration Release --logger "trx;LogFileName=test-results.trx" --collect:"XPlat Code Coverage" --results-directory artifacts/test-results
 ```
-- **Result:** **86 passed, 0 failed, 0 skipped** (duration: 684 ms).
-- Included tests: `ThreeRuntimeLifecycleTests` (15 tests), `ThreeRuntimeAssetIntegrityTests` (4 tests), `ThreeRuntimeModelTests` (8 tests), `NodeJsRuntimeTests` (1 test), `PhaseBoundaryTests` (3 tests), `StaticAssetOrganizationTests` (4 tests), `ArchitecturalDirectoryTests` (2 tests), `ProjectConfigurationTests` (5 tests), `ProjectDependencyTests` (2 tests), `PlatformIndependenceTests` (3 tests), `RepositoryInvariantTests` (3 tests), `TemplateRemovalTests` (9 tests), `AssemblyLoadingTests` (27 tests).
+- **Result:** **91 passed, 0 failed, 0 skipped** (duration: ~2.5 s).
+- Included tests: `ThreeRuntimeLifecycleTests` (20 tests covering `ImportAsync`, `InitializeAsync`, concurrency, idempotency, failure modes, cancellation, disposal), `ThreeRuntimeAssetIntegrityTests` (4 tests), `ThreeRuntimeModelTests` (8 tests), `NodeJsRuntimeTests` (1 test), `PhaseBoundaryTests` (3 tests), `StaticAssetOrganizationTests` (4 tests), `ArchitecturalDirectoryTests` (2 tests), `ProjectConfigurationTests` (5 tests), `ProjectDependencyTests` (2 tests), `PlatformIndependenceTests` (3 tests), `RepositoryInvariantTests` (3 tests), `TemplateRemovalTests` (9 tests), `AssemblyLoadingTests` (27 tests).
 
 ### 4. Code Coverage Quality Gate (ReportGenerator 5.5.12)
 Command:
@@ -83,9 +83,9 @@ Command:
 dotnet tool run reportgenerator "-reports:artifacts/test-results/**/coverage.cobertura.xml" "-targetdir:artifacts/coverage" "-reporttypes:MarkdownSummary;TextSummary"
 ```
 Report generated in `artifacts/coverage/Summary.txt`:
-- **Line coverage:** **100%** (137 of 137 coverable lines) — **Gate Passed (≥ 90%)**
-- **Method coverage:** **100%** (40 of 40 methods) — **Gate Passed (≥ 90%)**
-- **Branch coverage:** **100%** (44 of 44 branches) — **Gate Passed (≥ 90%)**
+- **Line coverage:** **100%** (152 of 152 coverable lines) — **Gate Passed (≥ 90%)**
+- **Method coverage:** **100%** (41 of 41 methods) — **Gate Passed (≥ 90%)**
+- **Branch coverage:** **100%** (46 of 46 branches) — **Gate Passed (≥ 90%)**
 - Individual breakdown for `Three.cs`:
   - `Three.Runtime.ThreeRuntime`: 100% line, 100% method, 100% branch
   - `Three.Runtime.ThreeUpstreamInfo`: 100% line, 100% method
@@ -115,21 +115,32 @@ Report generated in `artifacts/coverage/Summary.txt`:
 - Environment: WinUI 3, OS 10.0.22631, Device: B660M DS3H DDR4.
 - Native WebView: Microsoft Edge WebView2 (User Agent: `Chrome/156.0.0.0 Safari/537.36 Edg/156.0.0.0`).
 - Metrics recorded in `artifacts/maui-validation-windows.json`:
-  - **WebView Ready:** 0.001 ms (after managed window initialization)
-  - **Cold Module Import (JS):** 64.0 ms
-  - **Cold Runtime Init (JS):** 7.9 ms
-  - **Cold Total Startup (C# Stopwatch):** 112.4 ms
-  - **Warm Import (JS):** 0.0 ms
-  - **Warm Runtime Init (JS):** 2.6 - 3.6 ms
-  - **Warm Total (C# Stopwatch):** Mean 4.02 ms, Median 4.13 ms (Min: 3.42 ms, Max: 4.48 ms)
+  - **Native WebView Ready (`BlazorWebViewInitialized`):** 0.0015 ms
+  - **Blazor Component Ready (`OnAfterRenderAsync(firstRender)`):** 284.68 ms
+  - **Cold Module Import (C# `ImportAsync`):** 22.53 ms (JS `import()`: 50.90 ms)
+  - **Cold Runtime Init (C# `InitializeAsync`):** 70.17 ms (JS verification: 6.70 ms)
+  - **Cold Total Startup:** 92.70 ms (JS total: 57.60 ms)
+  - **Warm Operations (Active Live Runtime, no artificial dispose):**
+    - Mean: 2.37 ms, Median: 0.75 ms, Min: 0.05 ms, Max: 9.32 ms
+    - Iteration 1 (Warm Re-Init Check): 0.05 ms
+    - Iteration 2 (Warm Capabilities Query): 9.32 ms
+    - Iteration 3 (Warm Upstream Metadata Query): 1.13 ms
+    - Iteration 4 (Warm Capabilities Query): 0.75 ms
+    - Iteration 5 (Warm Upstream Metadata Query): 0.58 ms
   - **Errors:** 0
 
 ### 7. Validation Limitations and Target Status
 - **Windows (MAUI Hybrid):** Validated in native WinUI 3 WebView2 runtime (Release x64).
 - **Blazor WebAssembly:** Validated in Chromium browser via Playwright MCP against published app.
-- **Android (MAUI Hybrid):** Fully configured and implemented in `Three.cs.Validation.Maui`. Compilation/execution on the local machine requires elevating permissions to install the .NET 10 Android AOT workload (`dotnet workload restore`).
-- **iOS / MacCatalyst (MAUI Hybrid):** Configured with standard Apple targets (`net10.0-ios`, `net10.0-maccatalyst`). Cannot be executed locally on Windows due to Apple build requirements (macOS/Xcode).
+- **Android (MAUI Hybrid):** NOT EXECUTED — environment unavailable. Host code is fully implemented and ready in `tests/Three.cs.Validation.Maui`. Building the Android target (`net10.0-android`) requires installing the .NET 10 Android AOT workload (`dotnet workload restore`), which failed due to missing administrative elevation for Windows MSI installer in `C:\Program Files\dotnet\`. No synthetic results declared.
+- **iOS / MacCatalyst (MAUI Hybrid):** NOT EXECUTED — no Apple runtime/device environment available. Cross-compilation and execution for iOS and Mac Catalyst require macOS and Xcode, which are not available in this environment. The project target configuration is preserved.
+
+### 8. Automated CI Workflow & Quality Gate
+- GitHub Actions workflow implemented in `.github/workflows/build-tests.yml`.
+- Workflow executes build, TRX test logger, Cobertura code coverage collection, ReportGenerator 5.5.12, and quality gate script `scripts/Evaluate-QualityGate.ps1`.
+- Step summary publishes TRX results, Markdown summary, Text summary, and Quality Gate status.
+- Quality Gate automatically fails the workflow (exit code 1) if line, method, or branch coverage drops below 90% or any test fails.
 
 ## Exit Criteria Verification
 
-The selected Three.js runtime loads cleanly from the RCL Static Web Assets in both Blazor WebAssembly and .NET MAUI Blazor Hybrid WebViews, the module boundary is verified and stable, automated smoke and unit validation exists and passes (86/86 tests), and the code coverage gate passed at 100% across all metrics.
+The selected Three.js runtime loads cleanly from the RCL Static Web Assets in both Blazor WebAssembly and .NET MAUI Blazor Hybrid WebViews, the module boundary is verified and stable, automated smoke and unit validation exists and passes (91/91 tests), and the code coverage gate passed at 100% across all individual metrics (line: 100%, method: 100%, branch: 100%).

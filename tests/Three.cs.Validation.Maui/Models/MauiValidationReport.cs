@@ -5,8 +5,8 @@ namespace Three.Validation.Maui.Models;
 /// </summary>
 public sealed record MauiValidationReport(
     MauiEnvironmentInfo Environment,
-    double WebViewReadyMs,
+    double NativeWebViewReadyMs,
+    double BlazorComponentReadyMs,
     IReadOnlyList<MauiIterationMetric> Iterations,
-    MauiTimingStats WarmTotalStats,
+    MauiTimingStats WarmOperationStats,
     int ErrorCount);
-

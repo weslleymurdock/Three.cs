@@ -42,6 +42,105 @@ public class ThreeRuntimeLifecycleTests
     }
 
     [Fact]
+    public async Task ImportAsync_SuccessPath_PreLoadsModuleAndReusesInInitialize()
+    {
+        int importCalls = 0;
+        var module = new ScriptedJsObjectReference((id, args) =>
+        {
+            if (id == JsInteropConstants.Initialize)
+            {
+                return new ThreeRuntimeInitializeResponse(
+                    Ready: true,
+                    Status: "ready",
+                    Upstream: SampleUpstream,
+                    Capabilities: SampleCapabilities,
+                    Timings: SampleTimings,
+                    Error: null);
+            }
+            return null;
+        });
+
+        var js = new ScriptedJsRuntime((id, args) =>
+        {
+            if (id == JsInteropConstants.ImportFunction)
+            {
+                Interlocked.Increment(ref importCalls);
+                return module;
+            }
+            throw new InvalidOperationException($"Unexpected JS call: {id}");
+        });
+
+        await using var runtime = new ThreeRuntime(js);
+
+        await runtime.ImportAsync();
+        Assert.Equal(1, importCalls);
+        Assert.Equal(ThreeRuntimeState.Uninitialized, runtime.State);
+
+        // Calling ImportAsync again is idempotent and doesn't re-import
+        await runtime.ImportAsync();
+        Assert.Equal(1, importCalls);
+
+        // InitializeAsync uses the already imported module without re-importing
+        var init = await runtime.InitializeAsync();
+        Assert.Equal(1, importCalls);
+        Assert.Equal(ThreeRuntimeState.Ready, runtime.State);
+        Assert.NotNull(init);
+    }
+
+    [Fact]
+    public async Task ImportAsync_ThrowsOnImportFailure_AndSetsFailedState()
+    {
+        var js = new ScriptedJsRuntime((id, args) =>
+        {
+            throw new JSException("Network error fetching module");
+        });
+
+        await using var runtime = new ThreeRuntime(js);
+
+        var ex = await Assert.ThrowsAsync<ThreeRuntimeException>(() => runtime.ImportAsync());
+        Assert.Equal(ThreeRuntimeFailureCodes.ModuleImportFailed, ex.Code);
+        Assert.Equal("import", ex.Stage);
+        Assert.Equal(ThreeRuntimeState.Failed, runtime.State);
+    }
+
+    [Fact]
+    public async Task ImportAsync_Cancellation_ThrowsOperationCanceledException()
+    {
+        var js = new ScriptedJsRuntime((id, args) => null);
+        await using var runtime = new ThreeRuntime(js);
+
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runtime.ImportAsync(cts.Token));
+    }
+
+    [Fact]
+    public async Task ImportAsync_CancellationDuringOperation_ThrowsOperationCanceledException()
+    {
+        using var cts = new CancellationTokenSource();
+        var js = new ScriptedJsRuntime((id, args) =>
+        {
+            cts.Cancel();
+            cts.Token.ThrowIfCancellationRequested();
+            return null!;
+        });
+        await using var runtime = new ThreeRuntime(js);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runtime.ImportAsync(cts.Token));
+    }
+
+    [Fact]
+    public async Task ImportAsync_ThrowsWhenDisposed()
+    {
+        var js = new ScriptedJsRuntime((id, args) => null);
+        var runtime = new ThreeRuntime(js);
+        await runtime.DisposeAsync();
+
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => runtime.ImportAsync());
+    }
+
+    [Fact]
     public async Task InitializeAsync_SuccessPath_TransitionsToReadyAndReturnsData()
     {
         var module = new ScriptedJsObjectReference((id, args) =>
