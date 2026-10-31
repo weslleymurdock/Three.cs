@@ -1,9 +1,11 @@
 namespace Three.Tests;
 
 /// <summary>
-/// Guards the Phase 01 boundary defined by Issue #4: the architecture folders and static asset folders are
-/// prepared, but no runtime, bindings, bridge, lifecycle, hosting or bundled Three.js content exists yet.
-/// Later phases that intentionally add content must update these expectations as part of their own scope.
+/// Guards the Phase 02 boundary defined by Issue #5:
+/// - Bindings, Hosting and Lifecycle remain empty (tracking markers only).
+/// - Runtime and Interop contain Phase 02 Three.js runtime integration types.
+/// - Static assets (wwwroot/three and wwwroot/js) contain the runtime assets and facades.
+/// - Three.Engine contains no source files (Phase 01 of Engine is later).
 /// </summary>
 public class PhaseBoundaryTests
 {
@@ -12,10 +14,8 @@ public class PhaseBoundaryTests
     [Theory]
     [InlineData("Bindings")]
     [InlineData("Hosting")]
-    [InlineData("Interop")]
     [InlineData("Lifecycle")]
-    [InlineData("Runtime")]
-    public void ArchitectureDirectory_ContainsOnlyTheTrackingMarker(string directoryName)
+    public void LaterPhaseArchitectureDirectory_ContainsOnlyTheTrackingMarker(string directoryName)
     {
         var directoryPath = Path.Combine(SolutionPathHelper.SolutionRoot, "src", "Three.cs", directoryName);
 
@@ -26,31 +26,24 @@ public class PhaseBoundaryTests
         Assert.Equal([".gitkeep"], entries);
     }
 
-    [Theory]
-    [InlineData("three")]
-    [InlineData("js")]
-    public void StaticAssetDirectory_ContainsNoBundledAssetsYet(string directoryName)
-    {
-        var directoryPath = Path.Combine(SolutionPathHelper.SolutionRoot, "src", "Three.cs", "wwwroot", directoryName);
-
-        var entries = Directory.GetFileSystemEntries(directoryPath, "*", SearchOption.AllDirectories)
-            .Select(entry => Path.GetRelativePath(directoryPath, entry))
-            .ToList();
-
-        Assert.Equal([".gitkeep"], entries);
-    }
-
     [Fact]
-    public void ThreeCs_ContainsNoSourceFilesOutsideStaticAssets()
+    public void ThreeCs_ContainsSourceFilesOnlyInRuntimeAndInterop()
     {
         var projectDirectory = Path.Combine(SolutionPathHelper.SolutionRoot, "src", "Three.cs");
 
         var sources = EnumerateProjectFiles(projectDirectory)
             .Where(file => SourceExtensions.Contains(Path.GetExtension(file), StringComparer.OrdinalIgnoreCase))
             .Select(file => Path.GetRelativePath(projectDirectory, file))
+            .Where(file => !file.StartsWith("wwwroot" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        Assert.Empty(sources);
+        Assert.NotEmpty(sources);
+        Assert.All(sources, source =>
+        {
+            var folder = source.Split(Path.DirectorySeparatorChar)[0];
+            Assert.True(folder == "Runtime" || folder == "Interop",
+                $"Unexpected source file '{source}' outside Runtime/Interop in Phase 02.");
+        });
     }
 
     [Fact]
@@ -76,4 +69,3 @@ public class PhaseBoundaryTests
                     && !string.Equals(firstSegment, "obj", StringComparison.OrdinalIgnoreCase);
             });
 }
-

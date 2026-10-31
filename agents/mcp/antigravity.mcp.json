@@ -10,8 +10,7 @@
       "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/Start-Mcp-Filesystem.ps1"]
     },
     "playwright": {
-      "command": "powershell",
-      "args": ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "scripts/Start-Mcp-Playwright.ps1"]
+      "url": "http://localhost:8931/mcp"
     }
   }
 }

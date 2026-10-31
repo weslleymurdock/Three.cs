@@ -1,0 +1,4 @@
+# Three.js runtime files copied verbatim from the lib/three.js submodule must keep their exact bytes.
+# The integrity hashes in src/Three.cs/wwwroot/three/upstream.json are verified by tests.
+src/Three.cs/wwwroot/three/** -text
+
